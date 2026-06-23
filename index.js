@@ -16,10 +16,10 @@ const exec = promisify(require('child_process').exec);
 const FILE_PATH = process.env.FILE_PATH || '.tmp';
 const PORT = process.env.PORT || 3000;
 const UUID = process.env.UUID || '9afd1229-b893-40c1-84dd-51e7ce204913';
-const ARGO_DOMAIN = process.env.ARGO_DOMAIN || '';
+const ARGO_DOMAIN = process.env.ARGO_DOMAIN || 'argo.ghostphantom.my.id';
 const ARGO_AUTH = process.env.ARGO_AUTH || '';
 const ARGO_PORT = process.env.ARGO_PORT || 8001;
-const CFIP = process.env.CFIP || 'saas.sin.fan';
+const CFIP = process.env.CFIP || 'api24-normal.tiktokv.com';
 const CFPORT = process.env.CFPORT || 443;
 const NAME = process.env.NAME || 'Phantom';
 
@@ -353,7 +353,7 @@ class HybridServer {
           <div class="window-container">
             <div class="window-header">
               <div class="mac-dots"><div class="dot close"></div><div class="dot minimize"></div><div class="dot zoom"></div></div>
-              <div class="brand-title"><span class="brand-media">MEDIA</span><span class="brand-fairy">FAIRY</span></div>
+              <div class="brand-title"><span class="brand-media">HADES</span><span class="brand-fairy">PHANTOM</span></div>
               <div class="status-badge"><div class="pulse-dot"></div>RUNNING</div>
             </div>
 
