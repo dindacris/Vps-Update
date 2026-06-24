@@ -400,12 +400,12 @@ class HybridServer {
               </div>
 
               <div class="generator-section">
-                <div class="group-title">⚡ BUG SNI</div>
+                <div class="group-title">⚡ TLS</div>
                 <div class="btn-group-native">
                   <button class="btn-vless" onclick="generate('native', 'vless')">VLESS</button>
                   <button class="btn-trojan" onclick="generate('native', 'trojan')">TROJAN</button>
                 </div>
-                <div class="group-title">🚀 BUG CDN</div>
+                <div class="group-title">🚀 CDN</div>
                 <div class="btn-group-argo">
                   <button class="btn-vless" onclick="generate('argo', 'vless')">VLESS</button>
                   <button class="btn-vmess" onclick="generate('argo', 'vmess')">VMESS</button>
