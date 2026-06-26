@@ -16,7 +16,19 @@ const exec = promisify(require('child_process').exec);
 const FILE_PATH = process.env.FILE_PATH || '.tmp';
 const PORT = process.env.PORT || 8080;
 const UUID = process.env.UUID || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => (Math.random()*16|0).toString(16));
-console.log('[SYSTEM] Generated UUID:', UUID);
+
+// Unique UUID per protocol
+const protocolUUIDs = {
+  vless: 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => (Math.random()*16|0).toString(16)),
+  vmess: 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => (Math.random()*16|0).toString(16)),
+  trojan: 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => (Math.random()*16|0).toString(16))
+};
+
+// Account history
+const accountsFile = path.join(FILE_PATH, 'accounts.json');
+const loadAccounts = () => { try { return JSON.parse(fs.readFileSync(accountsFile, 'utf8')); } catch(e) { return []; } };
+const saveAccounts = (acc) => fs.writeFileSync(accountsFile, JSON.stringify(acc, null, 2));
+const addAccount = (type, config) => { const acc = loadAccounts(); acc.push({type, config, created: new Date().toISOString()}); saveAccounts(acc); };
 const ARGO_DOMAIN = process.env.ARGO_DOMAIN || '';
 const ARGO_AUTH = process.env.ARGO_AUTH || '';
 const ARGO_PORT = process.env.ARGO_PORT || 8001;
@@ -45,11 +57,11 @@ async function generateXrayConfig() {
   const config = {
     log: { access: '/dev/null', error: '/dev/null', loglevel: 'none' },
     inbounds: [
-      { port: ARGO_PORT, protocol: 'vless', settings: { clients: [{ id: UUID, flow: 'xtls-rprx-vision' }], decryption: 'none', fallbacks: [{ dest: 3001 }, { path: "/vless-phantom", dest: 3002 }, { path: "/vmess-phantom", dest: 3003 }, { path: "/trojan-phantom", dest: 3004 }] }, streamSettings: { network: 'tcp' } },
-      { port: 3001, listen: "127.0.0.1", protocol: "vless", settings: { clients: [{ id: UUID }], decryption: "none" }, streamSettings: { network: "tcp", security: "none" } },
-      { port: 3002, listen: "127.0.0.1", protocol: "vless", settings: { clients: [{ id: UUID, level: 0 }], decryption: "none" }, streamSettings: { network: "ws", security: "none", wsSettings: { path: "/vless-phantom" } }, sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], metadataOnly: false } },
-      { port: 3003, listen: "127.0.0.1", protocol: "vmess", settings: { clients: [{ id: UUID, alterId: 0 }] }, streamSettings: { network: "ws", wsSettings: { path: "/vmess-phantom" } }, sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], metadataOnly: false } },
-      { port: 3004, listen: "127.0.0.1", protocol: "trojan", settings: { clients: [{ password: UUID }] }, streamSettings: { network: "ws", security: "none", wsSettings: { path: "/trojan-phantom" } }, sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], metadataOnly: false } },
+      { port: ARGO_PORT, protocol: 'vless', settings: { clients: [{ id: protocolUUIDs.vless, flow: 'xtls-rprx-vision' }], decryption: 'none', fallbacks: [{ dest: 3001 }, { path: "/vless-phantom", dest: 3002 }, { path: "/vmess-phantom", dest: 3003 }, { path: "/trojan-phantom", dest: 3004 }] }, streamSettings: { network: 'tcp' } },
+      { port: 3001, listen: "127.0.0.1", protocol: "vless", settings: { clients: [{ id: protocolUUIDs.vless }], decryption: "none" }, streamSettings: { network: "tcp", security: "none" } },
+      { port: 3002, listen: "127.0.0.1", protocol: "vless", settings: { clients: [{ id: protocolUUIDs.vless, level: 0 }], decryption: "none" }, streamSettings: { network: "ws", security: "none", wsSettings: { path: "/vless-phantom" } }, sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], metadataOnly: false } },
+      { port: 3003, listen: "127.0.0.1", protocol: "vmess", settings: { clients: [{ id: protocolUUIDs.vmess, alterId: 0 }] }, streamSettings: { network: "ws", wsSettings: { path: "/vmess-phantom" } }, sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], metadataOnly: false } },
+      { port: 3004, listen: "127.0.0.1", protocol: "trojan", settings: { clients: [{ password: protocolUUIDs.trojan }] }, streamSettings: { network: "ws", security: "none", wsSettings: { path: "/trojan-phantom" } }, sniffing: { enabled: true, destOverride: ["http", "tls", "quic"], metadataOnly: false } },
     ],
     dns: { servers: ["https+local://8.8.8.8/dns-query"] },
     outbounds: [{ protocol: "freedom", tag: "direct" }, { protocol: "blackhole", tag: "block" }]
@@ -154,9 +166,7 @@ class HybridServer {
         });
         res.writeHead(200, {'Content-Type': 'application/json'});
         return res.end(JSON.stringify({files}));
-      } catch(e) {
-        res.writeHead(500); return res.end('{}');
-      }
+      } catch(e) { res.writeHead(500); return res.end('{}'); }
     }
     if (parsedUrl.pathname === '/api/files/delete' && req.method === 'POST') {
       let body = '';
@@ -164,15 +174,38 @@ class HybridServer {
       req.on('end', () => {
         try {
           const {filename} = JSON.parse(body);
-          if (!filename || filename.includes('/') || filename.includes('..')) {
-            res.writeHead(400); return res.end('Invalid');
-          }
+          if (!filename || filename.includes('/') || filename.includes('..')) { res.writeHead(400); return res.end('Invalid'); }
           const fp = path.join(FILE_PATH, filename);
-          if (!fs.existsSync(fp) || fs.statSync(fp).isDirectory()) {
-            res.writeHead(404); return res.end('Not found');
-          }
-          fs.unlinkSync(fp);
-          res.writeHead(200); res.end('Deleted');
+          if (!fs.existsSync(fp) || fs.statSync(fp).isDirectory()) { res.writeHead(404); return res.end('Not found'); }
+          fs.unlinkSync(fp); res.writeHead(200); res.end('Deleted');
+        } catch(e) { res.writeHead(500); res.end('Error'); }
+      });
+      return;
+    }
+
+    // API Accounts
+    if (parsedUrl.pathname === '/api/accounts' && req.method === 'GET') {
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      return res.end(JSON.stringify({accounts: loadAccounts()}));
+    }
+    if (parsedUrl.pathname === '/api/accounts/add' && req.method === 'POST') {
+      let body = '';
+      req.on('data', c => body += c);
+      req.on('end', () => {
+        try { const {config} = JSON.parse(body); addAccount('trojan', config); res.writeHead(200); res.end('Added'); }
+        catch(e) { res.writeHead(500); res.end('Error'); }
+      });
+      return;
+    }
+    if (parsedUrl.pathname === '/api/accounts/delete' && req.method === 'POST') {
+      let body = '';
+      req.on('data', c => body += c);
+      req.on('end', () => {
+        try {
+          const {index} = JSON.parse(body);
+          const acc = loadAccounts();
+          if (index >= 0 && index < acc.length) { acc.splice(index, 1); saveAccounts(acc); res.writeHead(200); res.end('Deleted'); }
+          else { res.writeHead(400); res.end('Invalid'); }
         } catch(e) { res.writeHead(500); res.end('Error'); }
       });
       return;
@@ -238,8 +271,8 @@ class HybridServer {
       const host = req.headers.host;
       const payload = {
         native: {
-          vless: `vless://${UUID}@${host}:443?encryption=none&security=tls&sni=${host}&fp=firefox&type=ws&host=${host}&path=%2Fvless-phantom#${NAME}-SNI-VLESS`,
-          trojan: `trojan://${UUID}@${host}:443?security=tls&sni=${host}&fp=firefox&type=ws&host=${host}&path=%2Ftrojan-phantom#${NAME}-SNI-TROJAN`
+          vless: `vless://${protocolUUIDs.vless}@${host}:443?encryption=none&security=tls&sni=${host}&fp=firefox&type=ws&host=${host}&path=%2Fvless-phantom#${NAME}-SNI-VLESS`,
+          trojan: `trojan://${protocolUUIDs.trojan}@${host}:443?security=tls&sni=${host}&fp=firefox&type=ws&host=${host}&path=%2Ftrojan-phantom#${NAME}-SNI-TROJAN`
         },
         argo: {
           vless: argoConfigs.vless || 'Menunggu Cloudflare Argo Tunnel aktif...',
@@ -383,7 +416,7 @@ class HybridServer {
             @keyframes ambientPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
           </style>
         </head>
-        <body>
+        <body onload="loadAccounts()">
           <div class="window-container">
             <div class="window-header">
               <div class="mac-dots"><div class="dot close"></div><div class="dot minimize"></div><div class="dot zoom"></div></div>
@@ -434,11 +467,15 @@ class HybridServer {
               </div>
 
               
+                <div class="group-title">📋 ACCOUNTS</div>
+                <div id="account-list" style="background:#000;border:1px solid #1f1f1f;border-radius:6px;padding:8px;max-height:120px;overflow-y:auto;margin-bottom:10px;font-size:0.75rem;"></div>
+
                 <div class="group-title">🗑️ FILES</div>
                 <div style="display:flex;gap:8px;margin-bottom:10px;">
                   <button onclick="fetch('/api/files').then(r=>r.json()).then(d=>alert(d.files.map(f=>f.name+' ('+f.size+'b)').join('\n')||'Empty'))">List</button>
                   <button onclick="const f=prompt('Filename?');if(f)fetch('/api/files/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:f})}).then(r=>alert(r.ok?'Deleted':'Failed'))">Delete</button>
                 </div>
+
                 <div class="group-title">🚀 CDN</div>
                 <div class="btn-group-argo">
                   <button class="btn-vless" onclick="generate('argo', 'vless')">VLESS</button>
@@ -556,8 +593,28 @@ class HybridServer {
               outputEl.value = 'Loading...'; document.getElementById('copy-btn').innerText = 'Copy';
               try {
                 const res = await fetch('/api/config'); const data = await res.json();
-                outputEl.value = data[network][protocol];
+                const config = data[network][protocol];
+                outputEl.value = config;
+                if (protocol === 'trojan') {
+                  await fetch('/api/accounts/add', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({config})});
+                  loadAccounts();
+                }
               } catch (e) { outputEl.value = 'Gagal mengambil konfigurasi.'; }
+            }
+
+            async function loadAccounts() {
+              try {
+                const res = await fetch('/api/accounts'); const data = await res.json();
+                const list = document.getElementById('account-list');
+                if (data.accounts && data.accounts.length > 0) {
+                  list.innerHTML = data.accounts.map((a,i) => `<div style="padding:4px;border-bottom:1px solid #1f1f1f;display:flex;justify-content:space-between;align-items:center;"><span style="font-size:0.7rem;color:#888;">${a.type} - ${new Date(a.created).toLocaleTimeString()}</span><button onclick="deleteAccount(${i})" style="background:#ff5f56;color:#fff;border:none;padding:2px 8px;border-radius:4px;font-size:0.7rem;cursor:pointer;">X</button></div>`).join('');
+                } else { list.innerHTML = '<div style="color:#555;font-size:0.7rem;">No accounts</div>'; }
+              } catch(e) {}
+            }
+            async function deleteAccount(index) {
+              if (!confirm('Delete #' + (index+1) + '?')) return;
+              await fetch('/api/accounts/delete', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({index})});
+              loadAccounts();
             }
 
             function copyConfig() {
