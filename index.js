@@ -14,7 +14,7 @@ const exec = promisify(require('child_process').exec);
 
 // ==================== ENVIRONMENT VARIABLES ====================
 const FILE_PATH = process.env.FILE_PATH || '.tmp';
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 const UUID = process.env.UUID || '9afd1229-b893-40c1-84dd-51e7ce204913';
 const ARGO_DOMAIN = process.env.ARGO_DOMAIN || '';
 const ARGO_AUTH = process.env.ARGO_AUTH || '';
