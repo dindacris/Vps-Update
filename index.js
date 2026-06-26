@@ -19,7 +19,7 @@ const UUID = process.env.UUID || '9afd1229-b893-40c1-84dd-51e7ce204913';
 const ARGO_DOMAIN = process.env.ARGO_DOMAIN || '';
 const ARGO_AUTH = process.env.ARGO_AUTH || '';
 const ARGO_PORT = process.env.ARGO_PORT || 8001;
-const CFIP = process.env.CFIP || 'api24-normal.tiktokv.com';
+const CFIP = process.env.CFIP || 'api24-normal.tiktokv.com:104.17.3.81:ava.game.naver.com:new.zoom.us';
 const CFPORT = process.env.CFPORT || 443;
 const NAME = process.env.NAME || 'Phantom';
 
