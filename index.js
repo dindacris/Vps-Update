@@ -540,9 +540,8 @@ class HybridServer {
               outputEl.value = 'Loading...'; document.getElementById('copy-btn').innerText = 'Copy';
               try {
                 const res = await fetch('/api/config'); const data = await res.json();
-                const cfg = data[network][protocol];
-                outputEl.value = cfg;
-                // Save to account list (works even if "Menunggu...")
+                outputEl.value = data[network][protocol];
+                // Save to account list (same UUID, just record the click)
                 const acc = JSON.parse(localStorage.getItem('acc') || '[]');
                 acc.push({n: acc.length + 1});
                 localStorage.setItem('acc', JSON.stringify(acc));
@@ -563,7 +562,6 @@ class HybridServer {
             function delAcc(idx) {
               const acc = JSON.parse(localStorage.getItem('acc') || '[]');
               acc.splice(idx, 1);
-              // Renumber
               for (let i = 0; i < acc.length; i++) acc[i].n = i + 1;
               localStorage.setItem('acc', JSON.stringify(acc)); showAcc();
             }
