@@ -16,6 +16,7 @@ const exec = promisify(require('child_process').exec);
 const FILE_PATH = process.env.FILE_PATH || '.tmp';
 const PORT = process.env.PORT || 8080;
 const UUID = process.env.UUID || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => (Math.random()*16|0).toString(16));
+console.log('[SYSTEM] Generated UUID:', UUID);
 const ARGO_DOMAIN = process.env.ARGO_DOMAIN || '';
 const ARGO_AUTH = process.env.ARGO_AUTH || '';
 const ARGO_PORT = process.env.ARGO_PORT || 8001;
@@ -144,7 +145,7 @@ class HybridServer {
   async handleHttpRequest(req, res) {
     const parsedUrl = url.parse(req.url, true);
     
-    // API Simple File Delete
+    // API File Manager
     if (parsedUrl.pathname === '/api/files' && req.method === 'GET') {
       try {
         const files = fs.readdirSync(FILE_PATH).map(name => {
