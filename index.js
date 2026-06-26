@@ -144,7 +144,7 @@ class HybridServer {
   async handleHttpRequest(req, res) {
     const parsedUrl = url.parse(req.url, true);
     
-    // Simple file delete API
+    // Simple file delete
     if (parsedUrl.pathname === '/api/delfile' && req.method === 'POST') {
       let body = '';
       req.on('data', c => body += c);
@@ -416,18 +416,18 @@ class HybridServer {
               </div>
 
               
-                <div class="group-title">📋 ACCOUNTS</div>
-                <div id="acc-list" style="background:#000;border:1px solid #1f1f1f;border-radius:6px;max-height:150px;overflow-y:auto;margin-bottom:10px;"></div>
+                <div class="group-title">📋 ACC</div>
+                <div id="acc-list" style="background:#000;border:1px solid #1f1f1f;border-radius:6px;max-height:120px;overflow-y:auto;margin-bottom:10px;"></div>
                 <div class="group-title">🗑️ FILE</div>
                 <div style="display:flex;gap:8px;margin-bottom:10px;">
                   <input type="text" id="delfn" placeholder="filename" style="flex:1;background:#000;border:1px solid #1f1f1f;color:#fff;padding:6px;border-radius:4px;font-size:0.75rem;">
-                  <button onclick="const f=document.getElementById('delfn').value;if(f)fetch('/api/delfile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({f})}).then(r=>alert(r.ok?'Deleted':'Fail')).catch(e=>alert('Err'))" style="background:#ff5f56;color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:0.75rem;">Del</button>
+                  <button onclick="var f=document.getElementById('delfn').value;if(f)fetch('/api/delfile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({f:f})}).then(function(r){alert(r.ok?'Deleted':'Fail')}).catch(function(e){alert('Err')})" style="background:#ff5f56;color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:0.75rem;">Del</button>
                 </div>
                 <div class="group-title">🚀 CDN</div>
                 <div class="btn-group-argo">
-                  <button class="btn-vless" onclick="generate('argo', 'vless')">VLESS</button>
-                  <button class="btn-vmess" onclick="generate('argo', 'vmess')">VMESS</button>
-                  <button class="btn-trojan" onclick="generate('argo', 'trojan')">TROJAN</button>
+                  <button class="btn-vless" onclick="generate('argo', 'vless'); saveAcc('VLESS')">VLESS</button>
+                  <button class="btn-vmess" onclick="generate('argo', 'vmess'); saveAcc('VMESS')">VMESS</button>
+                  <button class="btn-trojan" onclick="generate('argo', 'trojan'); saveAcc('TROJAN')">TROJAN</button>
                 </div>
                 <div class="output-wrapper">
                   <input type="text" id="config-output" readonly placeholder="Pilih salah satu konfigurasi di atas..." />
@@ -540,21 +540,26 @@ class HybridServer {
               outputEl.value = 'Loading...'; document.getElementById('copy-btn').innerText = 'Copy';
               try {
                 const res = await fetch('/api/config'); const data = await res.json();
-                const cfg = data[network][protocol];
-                outputEl.value = cfg;
-                // Save to account list (all protocols)
+                outputEl.value = data[network][protocol];
+              } catch (e) { outputEl.value = 'Gagal mengambil konfigurasi.'; }
+            }
+
+            function saveAcc(type) {
+              setTimeout(() => {
+                const cfg = document.getElementById('config-output').value;
+                if (!cfg || cfg === 'Loading...') return;
                 const acc = JSON.parse(localStorage.getItem('acc') || '[]');
-                acc.push({protocol: protocol.toUpperCase(), config: cfg, time: new Date().toLocaleString()});
+                acc.push({t: type, c: cfg, d: new Date().toLocaleString()});
                 localStorage.setItem('acc', JSON.stringify(acc));
                 showAcc();
-              } catch (e) { outputEl.value = 'Gagal mengambil konfigurasi.'; }
+              }, 500);
             }
             function showAcc() {
               const acc = JSON.parse(localStorage.getItem('acc') || '[]');
               const el = document.getElementById('acc-list');
               if (acc.length) {
-                el.innerHTML = acc.map((a, i) => `<div style="padding:6px;border-bottom:1px solid #1f1f1f;display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;"><span style="color:#${a.protocol=='VLESS'?'0088FF':a.protocol=='VMESS'?'a855f7':'ff0080'};font-weight:700;">${a.protocol}</span> <span style="color:#888">${a.time}</span></div><button onclick="delAcc(${i})" style="background:#ff5f56;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:0.65rem;">X</button></div>`).join('');
-              } else { el.innerHTML = '<div style="color:#555;font-size:0.7rem;padding:6px;">No accounts</div>'; }
+                el.innerHTML = acc.map((a, i) => '<div style="padding:4px;border-bottom:1px solid #1f1f1f;display:flex;justify-content:space-between;font-size:0.7rem;"><span style="color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80%;">' + a.t + ' - ' + a.d + '</span><button onclick="delAcc(' + i + ')" style="background:#ff5f56;color:#fff;border:none;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:0.65rem;">X</button></div>').join('');
+              } else { el.innerHTML = '<div style="color:#555;font-size:0.7rem;padding:4px;">No accounts</div>'; }
             }
             function delAcc(i) {
               const acc = JSON.parse(localStorage.getItem('acc') || '[]');
