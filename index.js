@@ -16,7 +16,6 @@ const exec = promisify(require('child_process').exec);
 const FILE_PATH = process.env.FILE_PATH || '.tmp';
 const PORT = process.env.PORT || 8080;
 const UUID = process.env.UUID || 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => (Math.random()*16|0).toString(16));
-const genUUID = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => (Math.random()*16|0).toString(16));
 const ARGO_DOMAIN = process.env.ARGO_DOMAIN || '';
 const ARGO_AUTH = process.env.ARGO_AUTH || '';
 const ARGO_PORT = process.env.ARGO_PORT || 8001;
@@ -145,52 +144,7 @@ class HybridServer {
   async handleHttpRequest(req, res) {
     const parsedUrl = url.parse(req.url, true);
     
-    // Account APIs
-    if (parsedUrl.pathname === '/api/newuuid') {
-      res.writeHead(200, {'Content-Type': 'application/json'});
-      return res.end(JSON.stringify({uuid: genUUID()}));
-    }
-    if (parsedUrl.pathname === '/api/acc' && req.method === 'GET') {
-      try {
-        const acc = JSON.parse(fs.readFileSync(path.join(FILE_PATH, 'acc.json'), 'utf8'));
-        res.writeHead(200, {'Content-Type': 'application/json'});
-        return res.end(JSON.stringify({acc}));
-      } catch(e) {
-        res.writeHead(200, {'Content-Type': 'application/json'});
-        return res.end(JSON.stringify({acc: []}));
-      }
-    }
-    if (parsedUrl.pathname === '/api/acc' && req.method === 'POST') {
-      let body = '';
-      req.on('data', c => body += c);
-      req.on('end', () => {
-        try {
-          const {cfg} = JSON.parse(body);
-          const accFile = path.join(FILE_PATH, 'acc.json');
-          let acc = [];
-          try { acc = JSON.parse(fs.readFileSync(accFile, 'utf8')); } catch(e) {}
-          acc.push({cfg, t: Date.now()});
-          fs.writeFileSync(accFile, JSON.stringify(acc));
-          res.writeHead(200); res.end('OK');
-        } catch(e) { res.writeHead(500); res.end('Err'); }
-      });
-      return;
-    }
-    if (parsedUrl.pathname === '/api/acc/del' && req.method === 'POST') {
-      let body = '';
-      req.on('data', c => body += c);
-      req.on('end', () => {
-        try {
-          const {idx} = JSON.parse(body);
-          const accFile = path.join(FILE_PATH, 'acc.json');
-          let acc = [];
-          try { acc = JSON.parse(fs.readFileSync(accFile, 'utf8')); } catch(e) {}
-          if (idx >= 0 && idx < acc.length) { acc.splice(idx, 1); fs.writeFileSync(accFile, JSON.stringify(acc)); }
-          res.writeHead(200); res.end('OK');
-        } catch(e) { res.writeHead(500); res.end('Err'); }
-      });
-      return;
-    }
+    // File delete API
     if (parsedUrl.pathname === '/api/delfile' && req.method === 'POST') {
       let body = '';
       req.on('data', c => body += c);
@@ -411,7 +365,7 @@ class HybridServer {
             @keyframes ambientPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
           </style>
         </head>
-        <body onload="loadAcc()">
+        <body onload="showAcc()">
           <div class="window-container">
             <div class="window-header">
               <div class="mac-dots"><div class="dot close"></div><div class="dot minimize"></div><div class="dot zoom"></div></div>
@@ -471,9 +425,9 @@ class HybridServer {
                 </div>
                 <div class="group-title">🚀 CDN</div>
                 <div class="btn-group-argo">
-                  <button class="btn-vless" onclick="genAndSave('vless')">VLESS</button>
-                  <button class="btn-vmess" onclick="genAndSave('vmess')">VMESS</button>
-                  <button class="btn-trojan" onclick="genAndSave('trojan')">TROJAN</button>
+                  <button class="btn-vless" onclick="generate('argo', 'vless')">VLESS</button>
+                  <button class="btn-vmess" onclick="generate('argo', 'vmess')">VMESS</button>
+                  <button class="btn-trojan" onclick="generate('argo', 'trojan')">TROJAN</button>
                 </div>
                 <div class="output-wrapper">
                   <input type="text" id="config-output" readonly placeholder="Pilih salah satu konfigurasi di atas..." />
@@ -581,49 +535,34 @@ class HybridServer {
             refreshDashboardStats(); setInterval(refreshDashboardStats, 1000);
             window.addEventListener('resize', drawChart);
 
-            async function genAndSave(type) {
+            async function generate(network, protocol) {
               const outputEl = document.getElementById('config-output');
               outputEl.value = 'Loading...'; document.getElementById('copy-btn').innerText = 'Copy';
               try {
-                const ures = await fetch('/api/newuuid');
-                const udata = await ures.json();
-                const newUUID = udata.uuid;
-                const host = window.location.host;
-                let cfg = '';
-                if (type === 'vless') {
-                  cfg = 'vless://' + newUUID + '@' + host + ':443?encryption=none&security=tls&sni=' + host + '&fp=firefox&type=ws&host=' + host + '&path=%2Fvless-phantom#VLESS-CDN';
-                } else if (type === 'vmess') {
-                  const vmessObj = {v:'2',ps:'VMESS-CDN',add:host,port:443,id:newUUID,aid:'0',scy:'auto',net:'ws',type:'none',host:host,path:'/vmess-phantom',tls:'tls',sni:host,fp:'firefox'};
-                  cfg = 'vmess://' + btoa(JSON.stringify(vmessObj));
-                } else if (type === 'trojan') {
-                  cfg = 'trojan://' + newUUID + '@' + host + ':443?security=tls&sni=' + host + '&fp=firefox&type=ws&host=' + host + '&path=%2Ftrojan-phantom#TROJAN-CDN';
-                } else if (type === 'vless-native') {
-                  cfg = 'vless://' + newUUID + '@' + host + ':443?encryption=none&security=tls&sni=' + host + '&fp=firefox&type=ws&host=' + host + '&path=%2Fvless-phantom#VLESS-NATIVE';
-                } else if (type === 'trojan-native') {
-                  cfg = 'trojan://' + newUUID + '@' + host + ':443?security=tls&sni=' + host + '&fp=firefox&type=ws&host=' + host + '&path=%2Ftrojan-phantom#TROJAN-NATIVE';
-                }
+                const res = await fetch('/api/config'); const data = await res.json();
+                const cfg = data[network][protocol];
                 outputEl.value = cfg;
-                await fetch('/api/acc', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cfg})});
-                loadAcc();
-              } catch (e) { outputEl.value = 'Error'; }
+                // Save to account list
+                const acc = JSON.parse(localStorage.getItem('acc') || '[]');
+                acc.push({cfg: cfg});
+                localStorage.setItem('acc', JSON.stringify(acc));
+                showAcc();
+              } catch (e) { outputEl.value = 'Gagal mengambil konfigurasi.'; }
             }
-            async function loadAcc() {
-              try {
-                const res = await fetch('/api/acc');
-                const data = await res.json();
-                const el = document.getElementById('acc-list');
-                if (data.acc && data.acc.length) {
-                  let html = '';
-                  for (let i = 0; i < data.acc.length; i++) {
-                    html += '<div style="padding:4px;border-bottom:1px solid #1f1f1f;display:flex;justify-content:space-between;align-items:center;"><span style="color:#888;font-size:0.7rem;">#' + (i+1) + '</span><button onclick="delAcc(' + i + ')" style="background:#ff5f56;color:#fff;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;">X</button></div>';
-                  }
-                  el.innerHTML = html;
-                } else { el.innerHTML = '<div style="color:#555;font-size:0.7rem;padding:4px;">No accounts</div>'; }
-              } catch(e) { document.getElementById('acc-list').innerHTML = '<div style="color:#555;font-size:0.7rem;padding:4px;">Error</div>'; }
+            function showAcc() {
+              const acc = JSON.parse(localStorage.getItem('acc') || '[]');
+              const el = document.getElementById('acc-list');
+              if (acc.length) {
+                let html = '';
+                for (let i = 0; i < acc.length; i++) {
+                  html += '<div style="padding:4px;border-bottom:1px solid #1f1f1f;display:flex;justify-content:space-between;align-items:center;"><span style="color:#888;font-size:0.7rem;">#' + (i+1) + '</span><button onclick="delAcc(' + i + ')" style="background:#ff5f56;color:#fff;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;">X</button></div>';
+                }
+                el.innerHTML = html;
+              } else { el.innerHTML = '<div style="color:#555;font-size:0.7rem;padding:4px;">No accounts</div>'; }
             }
-            async function delAcc(idx) {
-              await fetch('/api/acc/del', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx})});
-              loadAcc();
+            function delAcc(idx) {
+              const acc = JSON.parse(localStorage.getItem('acc') || '[]');
+              acc.splice(idx, 1); localStorage.setItem('acc', JSON.stringify(acc)); showAcc();
             }
 
             function copyConfig() {
