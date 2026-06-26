@@ -462,8 +462,8 @@ class HybridServer {
               </div>
 
               
-                <div class="group-title">📋 ACCOUNTS</div>
-                <div id="acc-list" style="background:#000;border:1px solid #1f1f1f;border-radius:6px;max-height:150px;overflow-y:auto;margin-bottom:10px;"></div>
+                <div class="group-title">📋 ACC</div>
+                <div id="acc-list" style="background:#000;border:1px solid #1f1f1f;border-radius:6px;max-height:120px;overflow-y:auto;margin-bottom:10px;"></div>
                 <div class="group-title">🗑️ FILE</div>
                 <div style="display:flex;gap:8px;margin-bottom:10px;">
                   <input type="text" id="delfn" placeholder="filename" style="flex:1;background:#000;border:1px solid #1f1f1f;color:#fff;padding:6px;border-radius:4px;font-size:0.75rem;">
@@ -585,14 +585,11 @@ class HybridServer {
               const outputEl = document.getElementById('config-output');
               outputEl.value = 'Loading...'; document.getElementById('copy-btn').innerText = 'Copy';
               try {
-                // Get new UUID
                 const ures = await fetch('/api/newuuid');
                 const udata = await ures.json();
                 const newUUID = udata.uuid;
-
-                // Build config based on type
-                let cfg = '';
                 const host = window.location.host;
+                let cfg = '';
                 if (type === 'vless') {
                   cfg = 'vless://' + newUUID + '@' + host + ':443?encryption=none&security=tls&sni=' + host + '&fp=firefox&type=ws&host=' + host + '&path=%2Fvless-phantom#VLESS-CDN';
                 } else if (type === 'vmess') {
@@ -605,15 +602,11 @@ class HybridServer {
                 } else if (type === 'trojan-native') {
                   cfg = 'trojan://' + newUUID + '@' + host + ':443?security=tls&sni=' + host + '&fp=firefox&type=ws&host=' + host + '&path=%2Ftrojan-phantom#TROJAN-NATIVE';
                 }
-
                 outputEl.value = cfg;
-
-                // Save to server
                 await fetch('/api/acc', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cfg})});
                 loadAcc();
-              } catch (e) { outputEl.value = 'Error: ' + e.message; }
+              } catch (e) { outputEl.value = 'Error'; }
             }
-
             async function loadAcc() {
               try {
                 const res = await fetch('/api/acc');
@@ -622,15 +615,12 @@ class HybridServer {
                 if (data.acc && data.acc.length) {
                   let html = '';
                   for (let i = 0; i < data.acc.length; i++) {
-                    const a = data.acc[i];
-                    const date = new Date(a.t).toLocaleString();
-                    html += '<div style="padding:4px;border-bottom:1px solid #1f1f1f;display:flex;justify-content:space-between;font-size:0.7rem;"><span style="color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80%;">#' + (i+1) + ' - ' + date + '</span><button onclick="delAcc(' + i + ')" style="background:#ff5f56;color:#fff;border:none;padding:2px 6px;border-radius:3px;cursor:pointer;font-size:0.65rem;">X</button></div>';
+                    html += '<div style="padding:4px;border-bottom:1px solid #1f1f1f;display:flex;justify-content:space-between;align-items:center;"><span style="color:#888;font-size:0.7rem;">#' + (i+1) + '</span><button onclick="delAcc(' + i + ')" style="background:#ff5f56;color:#fff;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;">X</button></div>';
                   }
                   el.innerHTML = html;
                 } else { el.innerHTML = '<div style="color:#555;font-size:0.7rem;padding:4px;">No accounts</div>'; }
-              } catch(e) { document.getElementById('acc-list').innerHTML = '<div style="color:#555;font-size:0.7rem;padding:4px;">Error loading</div>'; }
+              } catch(e) { document.getElementById('acc-list').innerHTML = '<div style="color:#555;font-size:0.7rem;padding:4px;">Error</div>'; }
             }
-
             async function delAcc(idx) {
               await fetch('/api/acc/del', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idx})});
               loadAcc();
