@@ -144,15 +144,6 @@ class HybridServer {
   async handleHttpRequest(req, res) {
     const parsedUrl = url.parse(req.url, true);
     
-    // Simple file list API
-    if (parsedUrl.pathname === '/api/files' && req.method === 'GET') {
-      try {
-        const files = fs.readdirSync(FILE_PATH).filter(n => !fs.statSync(path.join(FILE_PATH, n)).isDirectory()).map(n => ({n, s: fs.statSync(path.join(FILE_PATH, n)).size}));
-        res.writeHead(200, {'Content-Type': 'application/json'});
-        return res.end(JSON.stringify({files}));
-      } catch(e) { res.writeHead(500); return res.end(JSON.stringify({files: []})); }
-    }
-
     // Simple file delete API
     if (parsedUrl.pathname === '/api/delfile' && req.method === 'POST') {
       let body = '';
@@ -374,7 +365,7 @@ class HybridServer {
             @keyframes ambientPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
           </style>
         </head>
-        <body>
+        <body onload="showAcc()">
           <div class="window-container">
             <div class="window-header">
               <div class="mac-dots"><div class="dot close"></div><div class="dot minimize"></div><div class="dot zoom"></div></div>
@@ -425,10 +416,12 @@ class HybridServer {
               </div>
 
               
-                <div class="group-title">🗑️ FILES</div>
+                <div class="group-title">📋 ACCOUNTS</div>
+                <div id="acc-list" style="background:#000;border:1px solid #1f1f1f;border-radius:6px;max-height:150px;overflow-y:auto;margin-bottom:10px;"></div>
+                <div class="group-title">🗑️ FILE</div>
                 <div style="display:flex;gap:8px;margin-bottom:10px;">
-                  <button onclick="fetch('/api/files').then(r=>r.json()).then(d=>alert(d.files.length?d.files.map(f=>f.n+' ('+f.s+'b)').join('\n'):'Empty')).catch(e=>alert('Err'))">List</button>
-                  <button onclick="const f=prompt('Filename?');if(f)fetch('/api/delfile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({f})}).then(r=>alert(r.ok?'Deleted':'Fail')).catch(e=>alert('Err'))">Delete</button>
+                  <input type="text" id="delfn" placeholder="filename" style="flex:1;background:#000;border:1px solid #1f1f1f;color:#fff;padding:6px;border-radius:4px;font-size:0.75rem;">
+                  <button onclick="const f=document.getElementById('delfn').value;if(f)fetch('/api/delfile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({f})}).then(r=>alert(r.ok?'Deleted':'Fail')).catch(e=>alert('Err'))" style="background:#ff5f56;color:#fff;border:none;padding:6px 12px;border-radius:4px;cursor:pointer;font-size:0.75rem;">Del</button>
                 </div>
                 <div class="group-title">🚀 CDN</div>
                 <div class="btn-group-argo">
@@ -547,8 +540,25 @@ class HybridServer {
               outputEl.value = 'Loading...'; document.getElementById('copy-btn').innerText = 'Copy';
               try {
                 const res = await fetch('/api/config'); const data = await res.json();
-                outputEl.value = data[network][protocol];
+                const cfg = data[network][protocol];
+                outputEl.value = cfg;
+                // Save to account list (all protocols)
+                const acc = JSON.parse(localStorage.getItem('acc') || '[]');
+                acc.push({protocol: protocol.toUpperCase(), config: cfg, time: new Date().toLocaleString()});
+                localStorage.setItem('acc', JSON.stringify(acc));
+                showAcc();
               } catch (e) { outputEl.value = 'Gagal mengambil konfigurasi.'; }
+            }
+            function showAcc() {
+              const acc = JSON.parse(localStorage.getItem('acc') || '[]');
+              const el = document.getElementById('acc-list');
+              if (acc.length) {
+                el.innerHTML = acc.map((a, i) => `<div style="padding:6px;border-bottom:1px solid #1f1f1f;display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%;"><span style="color:#${a.protocol=='VLESS'?'0088FF':a.protocol=='VMESS'?'a855f7':'ff0080'};font-weight:700;">${a.protocol}</span> <span style="color:#888">${a.time}</span></div><button onclick="delAcc(${i})" style="background:#ff5f56;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:0.65rem;">X</button></div>`).join('');
+              } else { el.innerHTML = '<div style="color:#555;font-size:0.7rem;padding:6px;">No accounts</div>'; }
+            }
+            function delAcc(i) {
+              const acc = JSON.parse(localStorage.getItem('acc') || '[]');
+              acc.splice(i, 1); localStorage.setItem('acc', JSON.stringify(acc)); showAcc();
             }
 
             function copyConfig() {
