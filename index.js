@@ -542,9 +542,9 @@ class HybridServer {
                 const res = await fetch('/api/config'); const data = await res.json();
                 const cfg = data[network][protocol];
                 outputEl.value = cfg;
-                // Save to account list
+                // Save to account list (works even if "Menunggu...")
                 const acc = JSON.parse(localStorage.getItem('acc') || '[]');
-                acc.push({cfg: cfg});
+                acc.push({n: acc.length + 1});
                 localStorage.setItem('acc', JSON.stringify(acc));
                 showAcc();
               } catch (e) { outputEl.value = 'Gagal mengambil konfigurasi.'; }
@@ -555,14 +555,17 @@ class HybridServer {
               if (acc.length) {
                 let html = '';
                 for (let i = 0; i < acc.length; i++) {
-                  html += '<div style="padding:4px;border-bottom:1px solid #1f1f1f;display:flex;justify-content:space-between;align-items:center;"><span style="color:#888;font-size:0.7rem;">#' + (i+1) + '</span><button onclick="delAcc(' + i + ')" style="background:#ff5f56;color:#fff;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;">X</button></div>';
+                  html += '<div style="padding:4px;border-bottom:1px solid #1f1f1f;display:flex;justify-content:space-between;align-items:center;"><span style="color:#888;font-size:0.7rem;">#' + acc[i].n + '</span><button onclick="delAcc(' + i + ')" style="background:#ff5f56;color:#fff;border:none;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.65rem;">X</button></div>';
                 }
                 el.innerHTML = html;
               } else { el.innerHTML = '<div style="color:#555;font-size:0.7rem;padding:4px;">No accounts</div>'; }
             }
             function delAcc(idx) {
               const acc = JSON.parse(localStorage.getItem('acc') || '[]');
-              acc.splice(idx, 1); localStorage.setItem('acc', JSON.stringify(acc)); showAcc();
+              acc.splice(idx, 1);
+              // Renumber
+              for (let i = 0; i < acc.length; i++) acc[i].n = i + 1;
+              localStorage.setItem('acc', JSON.stringify(acc)); showAcc();
             }
 
             function copyConfig() {
