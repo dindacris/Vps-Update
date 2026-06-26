@@ -15,7 +15,8 @@ const exec = promisify(require('child_process').exec);
 // ==================== ENVIRONMENT VARIABLES ====================
 const FILE_PATH = process.env.FILE_PATH || '.tmp';
 const PORT = process.env.PORT || 8080;
-const UUID = process.env.UUID || '9afd1229-b893-40c1-84dd-51e7ce204913';
+const { randomUUID } = require('crypto');
+const UUID = process.env.UUID || randomUUID();
 const ARGO_DOMAIN = process.env.ARGO_DOMAIN || '';
 const ARGO_AUTH = process.env.ARGO_AUTH || '';
 const ARGO_PORT = process.env.ARGO_PORT || 8001;
@@ -141,9 +142,67 @@ class HybridServer {
     this.lastCpu = null;
   }
 
+  formatBytes(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
   async handleHttpRequest(req, res) {
     const parsedUrl = url.parse(req.url, true);
-    
+
+    // API File Manager - List Files
+    if (parsedUrl.pathname === '/api/files') {
+      try {
+        const files = fs.readdirSync(FILE_PATH).map(name => {
+          const stat = fs.statSync(path.join(FILE_PATH, name));
+          return {
+            name: name,
+            size: this.formatBytes(stat.size),
+            isDirectory: stat.isDirectory()
+          };
+        });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: true, path: FILE_PATH, files }));
+      } catch (e) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ success: false, message: e.message }));
+      }
+    }
+
+    // API File Manager - Delete File
+    if (parsedUrl.pathname === '/api/files/delete' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => body += chunk);
+      req.on('end', () => {
+        try {
+          const { filename } = JSON.parse(body);
+          if (!filename || filename.includes('..') || filename.includes('/')) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Invalid filename' }));
+          }
+          const filePath = path.join(FILE_PATH, filename);
+          if (!fs.existsSync(filePath)) {
+            res.writeHead(404, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'File not found' }));
+          }
+          const stat = fs.statSync(filePath);
+          if (stat.isDirectory()) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ success: false, message: 'Cannot delete directories' }));
+          }
+          fs.unlinkSync(filePath);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: true, message: `File ${filename} deleted successfully` }));
+        } catch (e) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          return res.end(JSON.stringify({ success: false, message: e.message }));
+        }
+      });
+      return;
+    }
+
     // API Statistik (GLOBAL TRAFFIC + CPU + RAM)
     if (parsedUrl.pathname === '/api/stats') {
       let currentRx = this.stats.rx;
@@ -400,6 +459,20 @@ class HybridServer {
               </div>
 
               
+              <div style="background-color: #050505; border: 1px solid #1f1f1f; border-radius: 8px; padding: 20px; margin-bottom: 20px;">
+                <div class="group-title">🗑️ FILE MANAGER</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px;">
+                  <button class="btn-vless" onclick="listFiles()">📁 List Files</button>
+                  <button class="btn-trojan" onclick="deleteFile()">🗑️ Delete File</button>
+                </div>
+                <div id="file-list" style="background: #000; border: 1px solid #1f1f1f; border-radius: 6px; padding: 10px; max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.75rem; color: #888; margin-bottom: 10px; display: none;"></div>
+                <div style="display: flex; gap: 8px; margin-top: 10px; border-top: 1px solid #1f1f1f; padding-top: 20px;">
+                  <input type="text" id="delete-filename" placeholder="Enter filename to delete..." style="flex: 1; background-color: #000; border: 1px solid #1f1f1f; color: #00df89; padding: 12px 16px; border-radius: 6px; font-family: monospace; font-size: 0.75rem; outline: none;" />
+                  <button class="btn-copy" onclick="executeDelete()" style="background: #ff5f56; color: white; padding: 0 20px; border: none; font-weight: 600; border-radius: 6px; cursor: pointer;">Delete</button>
+                </div>
+              </div>
+
+
                 <div class="group-title">🚀 CDN</div>
                 <div class="btn-group-argo">
                   <button class="btn-vless" onclick="generate('argo', 'vless')">VLESS</button>
@@ -519,6 +592,56 @@ class HybridServer {
                 const res = await fetch('/api/config'); const data = await res.json();
                 outputEl.value = data[network][protocol];
               } catch (e) { outputEl.value = 'Gagal mengambil konfigurasi.'; }
+            }
+
+            async function listFiles() {
+              const listEl = document.getElementById('file-list');
+              listEl.style.display = 'block';
+              listEl.innerHTML = 'Loading...';
+              try {
+                const res = await fetch('/api/files');
+                const data = await res.json();
+                if (data.files && data.files.length > 0) {
+                  listEl.innerHTML = data.files.map(f => `<div style="padding: 4px 0; border-bottom: 1px solid #1f1f1f;">📄 ${f.name} <span style="color: #555;">(${f.size})</span></div>`).join('');
+                } else {
+                  listEl.innerHTML = '<div style="color: #555;">No files found in directory.</div>';
+                }
+              } catch (e) {
+                listEl.innerHTML = '<div style="color: #ff5f56;">Failed to load file list.</div>';
+              }
+            }
+
+            async function deleteFile() {
+              document.getElementById('delete-filename').focus();
+              listFiles();
+            }
+
+            async function executeDelete() {
+              const filename = document.getElementById('delete-filename').value.trim();
+              if (!filename) {
+                alert('Please enter a filename to delete');
+                return;
+              }
+              if (!confirm(`Are you sure you want to delete: ${filename}?`)) {
+                return;
+              }
+              try {
+                const res = await fetch('/api/files/delete', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ filename })
+                });
+                const data = await res.json();
+                if (data.success) {
+                  alert(`✅ ${data.message}`);
+                  document.getElementById('delete-filename').value = '';
+                  listFiles();
+                } else {
+                  alert(`❌ ${data.message}`);
+                }
+              } catch (e) {
+                alert('❌ Failed to delete file');
+              }
             }
 
             function copyConfig() {
